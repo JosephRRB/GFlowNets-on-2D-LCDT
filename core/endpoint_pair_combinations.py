@@ -1,11 +1,32 @@
+from typing import Tuple
+
 import tensorflow as tf
 
 
 def extract_endpoint_pair_combinations(
-    segment_to_point_adj: tf.Tensor,
-    valid_segments: tf.Tensor,
-    n_light_crossings_per_pt: tf.Tensor,
-) -> (tf.Tensor, tf.Tensor):
+    triangulation,
+) -> Tuple[
+    Tuple[tf.Tensor, tf.Tensor],
+    Tuple[tf.Tensor, tf.Tensor],
+    Tuple[tf.Tensor, tf.Tensor],
+]:
+    # ------------------ Get relevant data from triangulation ------------------
+    segment_to_point_adj = tf.sparse.to_dense(
+        tf.sparse.reorder(triangulation.adj(etype=("segment", "has", "point")))
+    )
+    encoded_segment_type = tf.one_hot(
+        tf.cast(triangulation.nodes["segment"].data["type"], tf.int32), 2
+    )
+    segment_type = tf.expand_dims(tf.transpose(encoded_segment_type), 2)
+    boundary_segments = tf.expand_dims(
+        triangulation.nodes["segment"].data["boundary"], 1
+    )
+    valid_segments = boundary_segments * segment_type
+    n_light_crossings_per_pt = triangulation.nodes["point"].data[
+        "n_light_cone_angle"
+    ]
+
+    # ------------------------ Extract combinations ----------------------------
     endpt_adj_of_vseg = _construct_endpoint_adjacency_of_valid_segments(
         segment_to_point_adj, valid_segments
     )
@@ -31,12 +52,55 @@ def extract_endpoint_pair_combinations(
     ) = _get_compatible_endpoint_pair_combinations(
         segment_endpts, valid_endpt_pair_combinations_filter
     )
-    return current_pair_combos, new_tri_pair_combos
+
+    # --------------------- Group combinations per type ------------------------
+
+    # Join current segments
+    time_like_pairs = _get_pair_combos_per_type(current_pair_combos, 0)
+    space_like_pairs = _get_pair_combos_per_type(current_pair_combos, 1)
+    current = (time_like_pairs, space_like_pairs)
+
+    # Join with segment of new tss triangle
+    time_like_pairs_for_tss_triangle = _get_pair_combos_per_type(
+        new_tri_pair_combos, 0
+    )
+    space_like_pairs_for_tss_triangle = tf.concat(
+        [
+            _get_pair_combos_per_type(new_tri_pair_combos, 3),
+            _get_pair_combos_per_type(new_tri_pair_combos, 4)[:, ::-1],
+        ],
+        axis=0,
+    )
+    tss = (time_like_pairs_for_tss_triangle, space_like_pairs_for_tss_triangle)
+
+    # Join with segment of new stt triangle
+    time_like_pairs_for_stt_triangle = tf.concat(
+        [
+            _get_pair_combos_per_type(new_tri_pair_combos, 1),
+            _get_pair_combos_per_type(new_tri_pair_combos, 2)[:, ::-1],
+        ],
+        axis=0,
+    )
+    space_like_pairs_for_stt_triangle = _get_pair_combos_per_type(
+        new_tri_pair_combos, 5
+    )
+    stt = (time_like_pairs_for_stt_triangle, space_like_pairs_for_stt_triangle)
+    return current, tss, stt
+
+
+def _get_pair_combos_per_type(
+    pair_combos: tf.Tensor, type_index: int
+) -> tf.Tensor:
+    pair_combos_per_type = tf.gather_nd(
+        pair_combos[:, 1:],
+        tf.where(tf.math.equal(pair_combos[:, 0], type_index)),
+    )
+    return pair_combos_per_type
 
 
 def _get_compatible_endpoint_pair_combinations(
     segment_endpts: tf.Tensor, valid_endpt_pair_combinations_filter: tf.Tensor
-) -> (tf.Tensor, tf.Tensor):
+) -> Tuple[tf.Tensor, tf.Tensor]:
     """
     Gathers the node indices of compatible endpoint pairs. Along with the
     segment of the endpoint pairs, these can then be merged downstream. That is,
@@ -428,7 +492,7 @@ def _create_filter_for_combinations_of_valid_segment_endpoints(
         tf.expand_dims(pts_with_vseg, 1), pts_to_consider
     )
     # same points should have (at least?) two valid segments
-    endpts_common = tf.math.greater_equal(pts_with_vseg, 2)
+    endpts_common = tf.math.greater_equal(n_vseg_per_pt, 2)
     vseg_endpts_filter = tf.linalg.set_diag(endpts_combos, endpts_common)
     return vseg_endpts_filter
 
