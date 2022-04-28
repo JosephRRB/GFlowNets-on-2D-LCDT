@@ -25,6 +25,7 @@ def extract_endpoint_pair_combinations(
     n_light_crossings_per_pt = triangulation.nodes["point"].data[
         "n_light_cone_angle"
     ]
+    n_points_per_batch = triangulation.batch_num_nodes("point").numpy()
 
     # ------------------------ Extract combinations ----------------------------
     endpt_adj_of_vseg = _construct_endpoint_adjacency_of_valid_segments(
@@ -34,6 +35,7 @@ def extract_endpoint_pair_combinations(
         segment_to_point_adj,
         endpt_adj_of_vseg,
         n_light_crossings_per_pt,
+        n_points_per_batch,
     )
 
     segment_endpts = _get_valid_segment_endpoints_to_connect(
@@ -348,6 +350,7 @@ def _consolidate_point_combination_filters(
     segment_to_point_adj: tf.Tensor,
     endpt_adj_of_vseg: tf.Tensor,
     n_light_crossings_per_pt: tf.Tensor,
+    n_points_per_batch,
 ) -> tf.Tensor:
     """
     Filters out point combinations that:
@@ -378,7 +381,7 @@ def _consolidate_point_combination_filters(
     """
     non_neighbor_points_filter = (
         _create_filter_for_non_neighbor_point_combinations(
-            segment_to_point_adj
+            segment_to_point_adj, n_points_per_batch
         )
     )
     endpoints_of_valid_segments_filter = (
@@ -401,7 +404,7 @@ def _consolidate_point_combination_filters(
 
 
 def _create_filter_for_non_neighbor_point_combinations(
-    segment_to_point_adj: tf.Tensor,
+    segment_to_point_adj: tf.Tensor, n_points_per_batch
 ) -> tf.Tensor:
     """
     Filters out point pair combinations that are connected by a segment. What
@@ -429,6 +432,19 @@ def _create_filter_for_non_neighbor_point_combinations(
     pt_to_pt = _construct_pt_to_pt_adjacency(segment_to_point_adj)
     # non-neighbor points are points that are not connected by a segment
     non_neighbor_points_filter = tf.math.equal(pt_to_pt, 0)
+    filter_within_batches = tf.cast(
+        tf.linalg.LinearOperatorBlockDiag(
+            [
+                tf.linalg.LinearOperatorFullMatrix(tf.ones(shape=(n, n)))
+                for n in n_points_per_batch
+            ]
+        ).to_dense(),
+        dtype=tf.bool,
+    )
+
+    non_neighbor_points_filter = tf.math.logical_and(
+        non_neighbor_points_filter, filter_within_batches
+    )
 
     # points for new triangle
     # 3 point types for tss or stt triangle
