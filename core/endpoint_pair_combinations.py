@@ -5,17 +5,14 @@ import tensorflow as tf
 
 def extract_endpoint_pair_combinations(
     triangulation,
-) -> Tuple[
-    Tuple[tf.Tensor, tf.Tensor],
-    Tuple[tf.Tensor, tf.Tensor],
-    Tuple[tf.Tensor, tf.Tensor],
-]:
+) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
     # ------------------ Get relevant data from triangulation ------------------
     segment_to_point_adj = tf.sparse.to_dense(
-        tf.sparse.reorder(triangulation.adj(etype=("segment", "has", "point")))
+        tf.sparse.reorder(triangulation.adj(etype="segment_has_point"))
     )
     encoded_segment_type = tf.one_hot(
-        tf.cast(triangulation.nodes["segment"].data["type"], tf.int32), 2
+        tf.cast(triangulation.nodes["segment"].data["segment_type"], tf.int32),
+        2,
     )
     segment_type = tf.expand_dims(tf.transpose(encoded_segment_type), 2)
     boundary_segments = tf.expand_dims(
@@ -56,37 +53,44 @@ def extract_endpoint_pair_combinations(
     # --------------------- Group combinations per type ------------------------
 
     # Join current segments
-    time_like_pairs = _get_pair_combos_per_type(current_pair_combos, 0)
-    space_like_pairs = _get_pair_combos_per_type(current_pair_combos, 1)
-    current = (time_like_pairs, space_like_pairs)
+    timelike_pairs = _get_pair_combos_per_type(current_pair_combos, 0)
+    spacelike_pairs = _get_pair_combos_per_type(current_pair_combos, 1)
+    # current = (timelike_pairs, spacelike_pairs)
 
     # Join with segment of new tss triangle
-    time_like_pairs_for_tss_triangle = _get_pair_combos_per_type(
+    timelike_pairs_for_tss_triangle = _get_pair_combos_per_type(
         new_tri_pair_combos, 0
     )
-    space_like_pairs_for_tss_triangle = tf.concat(
+    spacelike_pairs_for_tss_triangle = tf.concat(
         [
             _get_pair_combos_per_type(new_tri_pair_combos, 3),
             _get_pair_combos_per_type(new_tri_pair_combos, 4)[:, ::-1],
         ],
         axis=0,
     )
-    tss = (time_like_pairs_for_tss_triangle, space_like_pairs_for_tss_triangle)
+    # tss = (timelike_pairs_for_tss_triangle, spacelike_pairs_for_tss_triangle)
 
     # Join with segment of new stt triangle
-    time_like_pairs_for_stt_triangle = tf.concat(
+    timelike_pairs_for_stt_triangle = tf.concat(
         [
             _get_pair_combos_per_type(new_tri_pair_combos, 1),
             _get_pair_combos_per_type(new_tri_pair_combos, 2)[:, ::-1],
         ],
         axis=0,
     )
-    space_like_pairs_for_stt_triangle = _get_pair_combos_per_type(
+    spacelike_pairs_for_stt_triangle = _get_pair_combos_per_type(
         new_tri_pair_combos, 5
     )
-    stt = (time_like_pairs_for_stt_triangle, space_like_pairs_for_stt_triangle)
-    return current, tss, stt
-
+    # stt = (timelike_pairs_for_stt_triangle, spacelike_pairs_for_stt_triangle)
+    # return current, tss, stt
+    return (
+        timelike_pairs,
+        spacelike_pairs,
+        timelike_pairs_for_tss_triangle,
+        spacelike_pairs_for_tss_triangle,
+        timelike_pairs_for_stt_triangle,
+        spacelike_pairs_for_stt_triangle
+    )
 
 def _get_pair_combos_per_type(
     pair_combos: tf.Tensor, type_index: int
