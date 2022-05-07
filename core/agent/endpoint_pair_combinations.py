@@ -222,14 +222,14 @@ def _create_combination_filter_for_each_endpoint_pair(
         segment_endpts
     """
     # ------------ Get the compatible points for p0 and p1 separately ----------
-    lower_tri_pt_combo_filter = tf.linalg.band_part(
-        valid_point_combinations_filter, -1, 0
-    )
+    # lower_tri_pt_combo_filter = tf.linalg.band_part(
+    #     valid_point_combinations_filter, -1, 0
+    # )
     endpt_0_combos = _get_combination_filter_for_each_point(
-        segment_endpts[:, :2], lower_tri_pt_combo_filter
+        segment_endpts[:, :2], valid_point_combinations_filter
     )
     endpt_1_combos = _get_combination_filter_for_each_point(
-        segment_endpts[:, ::2], lower_tri_pt_combo_filter
+        segment_endpts[:, ::2], valid_point_combinations_filter
     )
 
     # --- Create filter for points pairs (p0', p1') compatible with (p0, p1) ---
@@ -240,9 +240,9 @@ def _create_combination_filter_for_each_endpoint_pair(
     )
 
     # - Get only the pairs (p0', p1') that are endpoints of a valid segment s' -
-    lower_tri_neighbors = tf.linalg.band_part(endpt_adj_of_vseg, -1, 0)
+    # lower_tri_neighbors = tf.linalg.band_part(endpt_adj_of_vseg, -1, 0)
     valid_pt_neighbors_repeat = tf.gather(
-        lower_tri_neighbors, segment_endpts[:, 0]
+        endpt_adj_of_vseg, segment_endpts[:, 0]
     )
     valid_endpt_pair_combinations_filter = (
         valid_pt_neighbors_repeat * endpt_pair_combos_filter
@@ -329,7 +329,10 @@ def _get_valid_segment_endpoints_to_connect(
             -> segment_endpts[:, 0] corresponds to the segment type
             -> segment_endpts[:, 1:] are the node indices.
     """
-    original_segment_endpts = tf.where(endpt_adj_of_vseg)
+    lower_tri_endpt_adj_of_vseg = tf.linalg.band_part(
+        endpt_adj_of_vseg, -1, 0
+    )
+    original_segment_endpts = tf.where(lower_tri_endpt_adj_of_vseg)
     n_original_pts = endpt_adj_of_vseg.shape[1]
     endpts_of_new_triangle = tf.constant(
         [

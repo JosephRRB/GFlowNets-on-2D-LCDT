@@ -1,7 +1,6 @@
 import dgl
-import tensorflow as tf
 
-from core.endpoint_pair_combinations import extract_endpoint_pair_combinations
+from core.agent.endpoint_pair_combinations import extract_endpoint_pair_combinations
 
 
 def test():
@@ -19,13 +18,27 @@ def test():
 
 
 def test0():
-    from core.policy_network import HeteroGraphPolicyNetwork, _prepare_global_features
+    from core.agent.policy_network import HeteroGraphPolicyNetwork
 
     # from dgl.nn.tensorflow import GraphConv
 
     triangulation = dgl.load_graphs("./data/test_triangulation")[0][0]
-    triangulation = dgl.batch([triangulation] * 3)
+    # triangulation = dgl.batch([triangulation] * 3)
 
     policy = HeteroGraphPolicyNetwork()
     point_logits, triangulation_logits = policy(triangulation)
     point_logits
+
+
+# def test1():
+#     from core.agent import Agent
+#
+#     triangulation = dgl.load_graphs("./data/test_triangulation")[0][0]
+#     agent = Agent()
+#     agent.act(triangulation)
+
+
+def test2():
+    triangulation = dgl.load_graphs("./data/test_triangulation_1")[0][0]
+    endpt_combos = extract_endpoint_pair_combinations(triangulation)
+    endpt_combos

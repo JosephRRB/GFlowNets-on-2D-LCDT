@@ -52,7 +52,9 @@ def _create_base_triangle():
 
 def _create_tss_triangle(triangle):
     tss_triangle = deepcopy(triangle)
-    tss_triangle.nodes["segment"].data["segment_type"] = tf.constant([0, 1, 1])
+    tss_triangle.nodes["segment"].data["segment_type"] = tf.constant(
+        [0, 1, 1], dtype=tf.float32
+    )
     tss_triangle = _create_triangle_data(tss_triangle)
     tss_triangle = _update_triangulation_data(tss_triangle)
     return tss_triangle
@@ -60,7 +62,9 @@ def _create_tss_triangle(triangle):
 
 def _create_stt_triangle(triangle):
     stt_triangle = deepcopy(triangle)
-    stt_triangle.nodes["segment"].data["segment_type"] = tf.constant([1, 0, 0])
+    stt_triangle.nodes["segment"].data["segment_type"] = tf.constant(
+        [1, 0, 0], dtype=tf.float32
+    )
     stt_triangle = _create_triangle_data(stt_triangle)
     stt_triangle = _update_triangulation_data(stt_triangle)
     return stt_triangle
